@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	BestCompression    = gzip.BestCompression
-	BestSpeed          = gzip.BestSpeed
-	DefaultCompression = gzip.DefaultCompression
-	NoCompression      = gzip.NoCompression
+	BestCompression       = gzip.BestCompression
+	BestSpeed             = gzip.BestSpeed
+	DefaultCompression    = gzip.DefaultCompression
+	NoCompression         = gzip.NoCompression
+	gzipScheme            = "gzip"
+	HeaderContentEncoding = "Content-Encoding"
 )
 
 func Gzip(level int) gin.HandlerFunc {
@@ -28,7 +30,20 @@ func Gzip(level int) gin.HandlerFunc {
 		}
 		return gz
 	}
+
+	var gzReaderPool sync.Pool
+	gzReaderPool.New = func() interface{} {
+		gz := new(gzip.Reader)
+		return gz
+	}
 	return func(c *gin.Context) {
+		//reader
+		if strings.Contains(c.GetHeader(HeaderContentEncoding), gzipScheme) {
+			gz := gzReaderPool.Get().(*gzip.Reader)
+			defer gzReaderPool.Put(gz)
+			gz.Reset(c.Request.Body)
+			c.Request.Body = gz
+		}
 		if !shouldCompress(c.Request) {
 			return
 		}
